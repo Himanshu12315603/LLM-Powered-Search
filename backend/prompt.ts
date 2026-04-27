@@ -6,18 +6,35 @@ export const SYSTEM_PROMPT = `
 
     You also need to return follow up questions to the user based on the question they have asked. 
     The response needs to be structred like this - 
-    {
-        followsUps: [string],
-        answer: string
-    }
 
+    <ANSWER> 
+        This is where actul query should be answered.
+    </ANSWER>
+
+    <FOLLOW_UPS>
+        <question> first follow up question </queston>
+        <question> second follow up question </queston>
+        <question> third follow up question </queston>
+    </FOLLOW_UPS>
+
+    Example - 
+    Query - I want to learn  rust, can u suggest me some good platform
+    Response - 
+
+    <ANSWER> 
+    For sure, the best resources to learn rust is the rust book
+    </ANSWER>
+
+    <FOLLOW_UPS> 
+        <question> Do you have any prefrence for video or text based content? </queston>
+        <question> What is your current level with programming? </queston>
+        <question> Do you want to learn rust for web development, game development or system programming? </queston>
+    </FOLLOW_UPS>
 `
-
 
 export const PROMPT_TEMPLATE = `
     ## Web search results
     {{WEB_SEARCH_RESULTS}}
-
 
     ## USER_QUERY
     {{ USER_QUERY }}
