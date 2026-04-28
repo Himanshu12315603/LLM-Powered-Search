@@ -1,60 +1,74 @@
+import 'dotenv/config';
 import express from 'express';
-import z from 'zod';
-import { tavily } from '@tavily/core'
-import { Output, streamText } from 'ai';
+import { tavily } from '@tavily/core';
+import Groq from 'groq-sdk';
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from './prompt';
 
-const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
+const tavilyClient = tavily({ apiKey: process.env.TAVILY_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
 const app = express();
 app.use(express.json());
 
+app.post("/purplexity_ask", async (req, res) => {
+  console.log("📥 Request received:", req.body);
+  const query = req.body.query;
 
-app.post("/purplexity_ask", async(req, res) => {
+  if (!query) {
+    console.log("❌ No query provided");
+    res.status(400).json({ error: "Query is required" });
+    return;
+  }
 
-    //step 1 -  get the query from the user
-    const query = req.body.query;
-
-    // step 2 -  make sure user has access/credits to hit the endpoint 
-    // step 3  - check if we have web search indexed for a similar query 
-    // step 4 - hit web search to gather resoures
-
-    const webSearchResponse = await client.search(query, {
-        searchDepth: "advanced"
+  try {
+    console.log("🔍 Starting web search...");
+    const webSearchResponse = await tavilyClient.search(query, {
+      searchDepth: "advanced"
     });
-    const webSearchResults = webSearchResponse.results;
+    console.log("✅ Web search done, results:", webSearchResponse.results.length);
 
-    // do some context engineering on the promt + web search responce 
-
-    // step 5 - hit the LLM and stream back the response 
-    // hit the LLM? LLM api/operater 
     const prompt = PROMPT_TEMPLATE
-        .replace("{{WEB_SEARCH_RESULTS}", JSON.stringify(webSearchResults))
-        .replace("{{USER_QUERY}}", query);
+      .replace("{{WEB_SEARCH_RESULTS}}", JSON.stringify(webSearchResponse.results))
+      .replace("{{USER_QUERY}}", query);
 
-    const result = streamText({
-        model: 'auto',
-        prompt: prompt,
-        system: SYSTEM_PROMPT,
+    console.log("🤖 Calling Groq...");
+    const stream = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt }
+      ],
+      stream: true,
     });
 
     res.header('Cache-Control', 'no-cache');
     res.header('Content-Type', 'text/event-stream');
+    console.log("📡 Streaming started...");
 
-    for await (const textPart of result.textStream) {
-        res.write(textPart);
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || '';
+      if (text) res.write(text);
     }
 
-    res.write("-----------SOURCES-----------");
+    res.write("\n-----------SOURCES-----------\n");
+    webSearchResponse.results.forEach((result) => {
+      res.write(JSON.stringify({ title: result.title, url: result.url }) + "\n");
+    });
 
-    // step 7 - also stream back the soursces or follow up questions which we can from another pararell form 
-    webSearchResults.forEach((result => (JSON.stringify(result))))
-
-    // step 8 - close the event stream 
     res.end();
+    console.log("✅ Stream complete");
 
+  } catch (err) {
+    console.error("❌ ERROR:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: String(err) });
+    } else {
+      res.write("\n[ERROR]: " + String(err));
+      res.end();
+    }
+  }
 });
 
-
 app.listen(3000, () => {
-    console.log('Server is running on port 3000');
+  console.log('Server is running on port 3000');
 });
