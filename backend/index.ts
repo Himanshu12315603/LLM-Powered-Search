@@ -10,6 +10,24 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const app = express();
 app.use(express.json());
 
+// Sign Up
+app.post('/signup', async(req, res) => {
+
+});
+// Sign In
+app.post('/signin', async(req, res) => {
+
+});
+//Past converstaion get 
+app.get('/conversations', async(req, res) => {
+
+});
+//Past conversations get 
+app.get('/conversations/:conversationId', async(req, res) => {
+
+});
+
+
 app.post("/purplexity_ask", async (req, res) => {
   console.log("📥 Request received:", req.body);
   const query = req.body.query;
