@@ -22,6 +22,7 @@ model User {
   email           String      
   provider        AuthProvider
   name            String
+  superbaseId     
   coversations    Conversation[]
 }
 
@@ -43,4 +44,15 @@ model Message {
   conversationId       String 
   conversation         Conversation @relation(fields: [conversationId], references: [id])
   createdAt            DateTime     @default(now())
+}
+
+enum MessageRole {
+  User 
+  Assistant
+}
+
+
+enum AuthProvider {
+  Github
+  Google
 }
