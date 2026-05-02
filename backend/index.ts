@@ -3,12 +3,24 @@ import express from 'express';
 import { tavily } from '@tavily/core';
 import Groq from 'groq-sdk';
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from './prompt';
+import { prisma } from './db'
 
 const tavilyClient = tavily({ apiKey: process.env.TAVILY_API_KEY });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 app.use(express.json());
+
+
+// Test DB connection and create a user
+// const res = await prisma.user.create({
+//   data: {
+//     email: "ram@gmail.com",
+//     provider: "Google",
+//     name: "Himanshu",
+//   }
+// })
+// console.log("User created:", res);
 
 // Sign Up
 app.post('/signup', async(req, res) => {
