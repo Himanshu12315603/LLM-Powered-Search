@@ -3,6 +3,7 @@ import express from 'express';
 import { tavily } from '@tavily/core';
 import Groq from 'groq-sdk';
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from './prompt';
+import cors from 'cors';
 import { prisma } from './db'
 
 const tavilyClient = tavily({ apiKey: process.env.TAVILY_API_KEY });
@@ -10,6 +11,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 
 // Test DB connection and create a user
@@ -32,6 +34,7 @@ app.post('/signin', async(req, res) => {
 });
 //Past converstaion get 
 app.get('/conversations', async(req, res) => {
+  
 
 });
 //Past conversations get 
@@ -99,6 +102,6 @@ app.post("/purplexity_ask", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
+app.listen(3001, () => {
+  console.log('Server is running on port 3001');
 });
