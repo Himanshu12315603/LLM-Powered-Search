@@ -35,7 +35,7 @@ function parseResponse(raw: string): { answer: string; followUps: string[] } {
 
   // Extract content from <ANSWER>...</ANSWER> tags
   const answerMatch = raw.match(/<ANSWER>\s*([\s\S]*?)\s*<\/ANSWER>/i);
-  if (answerMatch) {
+  if (answerMatch && answerMatch[1]) {
     answer = answerMatch[1].trim();
   } else {
     // Fallback: strip any stray <ANSWER> or </ANSWER> tags
@@ -44,13 +44,15 @@ function parseResponse(raw: string): { answer: string; followUps: string[] } {
 
   // Extract follow-up questions from <FOLLOW_UPS>...<question>...</question>...</FOLLOW_UPS>
   const followUpsMatch = raw.match(/<FOLLOW_UPS>\s*([\s\S]*?)\s*<\/FOLLOW_UPS>/i);
-  if (followUpsMatch) {
+  if (followUpsMatch && followUpsMatch[1]) {
     const questionsBlock = followUpsMatch[1];
     const questionRegex = /<question>\s*([\s\S]*?)\s*<\/question>/gi;
     let qMatch;
     while ((qMatch = questionRegex.exec(questionsBlock)) !== null) {
-      const q = qMatch[1].trim();
-      if (q) followUps.push(q);
+      if (qMatch[1]) {
+        const q = qMatch[1].trim();
+        if (q) followUps.push(q);
+      }
     }
     // Remove the entire <FOLLOW_UPS> block from the answer if it leaked through
     answer = answer.replace(/<FOLLOW_UPS>[\s\S]*<\/FOLLOW_UPS>/gi, '').trim();
@@ -166,7 +168,7 @@ function AssistantContent({ content, isCurrentlyStreaming, onSelectFollowUp }: {
               const codeVal = String(children).replace(/\n$/, '');
               const isInline = !className && !codeVal.includes('\n');
               return !isInline ? (
-                <CodeBlock code={codeVal} language={match ? match[1] : 'code'} />
+                <CodeBlock code={codeVal} language={(match && match[1]) ? match[1] : 'code'} />
               ) : (
                 <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs text-primary font-mono font-medium" {...props}>
                   {children}
