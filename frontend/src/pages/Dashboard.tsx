@@ -275,8 +275,12 @@ export default function Dashboard() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputQuery, setInputQuery] = useState("");
     const [isStreaming, setIsStreaming] = useState(false);
+
     const [streamingSources, setStreamingSources] = useState<SearchResult[]>([]);
     const [hasStartedStreaming, setHasStartedStreaming] = useState(false);
+    const hasStartedStreamingRef = useRef(false);
+    const [thinkingElapsed, setThinkingElapsed] = useState(0);
+    const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Modern UI search modifiers
     const [focusMode, setFocusMode] = useState<"all" | "writing" | "code" | "academic">("all");
@@ -285,48 +289,14 @@ export default function Dashboard() {
     const [webSearchEnabled, setWebSearchEnabled] = useState(true);
     
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
-    
-    // Auto scroll to bottom
-    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
-        if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTo({
-                top: chatContainerRef.current.scrollHeight,
-                behavior
-            });
-        }
-    };
 
-    // Auto-scroll when messages update or streaming changes height
+    // Scroll the sentinel div into view — fires on EVERY message state change
+    // (including streaming content updates, not just length changes)
     useEffect(() => {
-        const container = chatContainerRef.current;
-        if (!container) return;
-
-        const observer = new ResizeObserver(() => {
-            const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 250;
-            if (isStreaming || isNearBottom) {
-                container.scrollTo({
-                    top: container.scrollHeight,
-                    behavior: isStreaming ? "auto" : "smooth"
-                });
-            }
-        });
-
-        // Observe the first child of the scrollable container (which contains the message list)
-        const chatContent = container.firstElementChild;
-        if (chatContent) {
-            observer.observe(chatContent);
-        }
-
-        return () => {
-            observer.disconnect();
-        };
-    }, [isStreaming]);
-
-    // Smooth scroll to bottom when a new query is added (messages length changes)
-    useEffect(() => {
-        scrollToBottom("smooth");
-    }, [messages.length]);
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, [messages]);
 
     useEffect(() => {
         async function getInfo() {
@@ -395,7 +365,14 @@ export default function Dashboard() {
         setInputQuery("");
         setIsStreaming(true);
         setHasStartedStreaming(false);
+        hasStartedStreamingRef.current = false;
+        setThinkingElapsed(0);
         setStreamingSources([]);
+        // Start elapsed timer
+        if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = setInterval(() => {
+            setThinkingElapsed(prev => prev + 1);
+        }, 1000);
         
         const { data: { session } } = await supabase.auth.getSession();
         const jwt = session?.access_token;
@@ -439,8 +416,10 @@ export default function Dashboard() {
                 const chunk = decoder.decode(value, { stream: true });
                 buffer += chunk;
 
-                if (!hasStartedStreaming && chunk.length > 0) {
+                if (!hasStartedStreamingRef.current && chunk.length > 0) {
+                    hasStartedStreamingRef.current = true;
                     setHasStartedStreaming(true);
+                    if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
                 }
                 
                 if (parsingState === "answer") {
@@ -494,6 +473,8 @@ export default function Dashboard() {
         } finally {
             setIsStreaming(false);
             setHasStartedStreaming(false);
+            hasStartedStreamingRef.current = false;
+            if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
         }
     };
 
@@ -518,8 +499,8 @@ export default function Dashboard() {
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-bold text-sm tracking-tight bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">Perplexity AI</span>
-                        <span className="text-[9px] text-primary/80 font-bold tracking-widest uppercase">Intelligent Search</span>
+                        <span className="font-bold text-sm tracking-tight bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">LLM PS</span>
+                        <span className="text-[9px] text-primary/80 font-bold tracking-widest uppercase">Powered Search</span>
                     </div>
                 </div>
                 
@@ -591,7 +572,7 @@ export default function Dashboard() {
                         </div>
 
                         <h1 className="text-4xl md:text-5xl font-bold mb-3 text-center gradient-text tracking-tight">
-                            LLM Powered Search
+                            LLM PS
                         </h1>
                         <p className="text-muted-foreground text-center mb-10 text-base">
                             Ask anything. Get intelligent, sourced answers instantly.
@@ -737,7 +718,7 @@ export default function Dashboard() {
                 ) : (
                     // CHAT STATE
                     <>
-                        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth pb-40 relative z-10 custom-scrollbar">
+                        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 pb-40 relative z-10 custom-scrollbar">
                             <div className="max-w-3xl mx-auto space-y-8">
                                 {messages.map((msg, idx) => (
                                     <div key={msg.id || idx} className="flex flex-col animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
@@ -766,20 +747,23 @@ export default function Dashboard() {
                                                     {idx === messages.length - 1 && isStreaming && !hasStartedStreaming && (
                                                         <StreamingProgress isActive={true} />
                                                     )}
-                                                    
+
                                                     {msg.content ? (
-                                                        <AssistantContent 
+                                                        <AssistantContent
                                                             content={msg.content}
                                                             isCurrentlyStreaming={idx === messages.length - 1 && isStreaming}
                                                             onSelectFollowUp={(q) => setInputQuery(q)}
                                                         />
                                                     ) : (
-                                                        !hasStartedStreaming && (
-                                                            <div className="flex items-center gap-3 py-2">
-                                                                 <div className="dot-loading flex gap-1.5">
-                                                                     <span /><span /><span />
-                                                                 </div>
-                                                                 <span className="text-muted-foreground text-sm">Thinking...</span>
+                                                        idx === messages.length - 1 && isStreaming && !hasStartedStreaming && (
+                                                            <div className="flex items-center gap-3 py-3">
+                                                                <div className="dot-loading flex gap-1.5">
+                                                                    <span /><span /><span />
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-muted-foreground text-sm font-medium">Thinking...</span>
+                                                                    <span className="text-muted-foreground/50 text-xs mt-0.5">{thinkingElapsed}s elapsed — searching &amp; gathering sources</span>
+                                                                </div>
                                                             </div>
                                                         )
                                                     )}
@@ -819,6 +803,8 @@ export default function Dashboard() {
                                         )}
                                     </div>
                                 ))}
+                                {/* Sentinel div — scroll target */}
+                                <div ref={messagesEndRef} className="h-1" />
                             </div>
                         </div>
                         

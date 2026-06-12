@@ -131,6 +131,18 @@
   margin-left: 2px;
 }
 
+/* Thinking dots animation (cycles through . .. ...) */
+@keyframes thinkingDots {
+  0%   { content: '.'; }
+  33%  { content: '..'; }
+  66%  { content: '...'; }
+  100% { content: '.'; }
+}
+.thinking-dots::after {
+  content: '';
+  animation: thinkingDots 1.5s steps(1) infinite;
+}
+
 /* Progress bar animation */
 @keyframes progressSlide {
   0% { transform: translateX(-100%); }
